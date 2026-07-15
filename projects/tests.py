@@ -28,21 +28,22 @@ class SustainabilityTrackerTests(APITestCase):
             skills="Django, Python, HTML"
         )
         self.task_completed = Task.objects.create(
-            project=self.project_active,
             assigned_to=self.contributor,
             title="Buy solar panels",
             description="Procure photovoltaic panels",
             due_date=date.today() - timedelta(days=2),
             is_completed=True
         )
+        self.task_completed.projects.add(self.project_active)
+
         self.task_overdue = Task.objects.create(
-            project=self.project_active,
             assigned_to=self.contributor,
             title="Install inverter mount",
             description="Build brackets for the central inverter",
             due_date=date.today() - timedelta(days=1),
             is_completed=False
         )
+        self.task_overdue.projects.add(self.project_active)
 
         # Clear cache before each test
         cache.clear()
@@ -125,3 +126,73 @@ class SustainabilityTrackerTests(APITestCase):
         response_3 = self.client.get(url)
         active_proj_new = next(p for p in response_3.data['results'] if p['id'] == self.project_active.id)
         self.assertEqual(active_proj_new['name'], "Signals Updated Name")
+
+    def test_project_due_date(self):
+        url = reverse('project-list')
+        payload = {
+            "name": "New Project with Due Date",
+            "description": "Test due date field",
+            "location": "Online",
+            "status": "Active",
+            "due_date": "2026-12-31"
+        }
+        response = self.client.post(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(response.data['due_date'], "2026-12-31")
+
+    def test_task_m2m_projects(self):
+        url = reverse('task-list')
+        payload = {
+            "projects": [self.project_active.id, self.project_completed.id],
+            "title": "M2M Test Task",
+            "description": "Task for multiple projects",
+            "due_date": str(date.today()),
+            "assigned_to": self.contributor.id,
+            "is_completed": False
+        }
+        response = self.client.post(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(len(response.data['projects']), 2)
+        self.assertIn(self.project_active.id, response.data['projects'])
+        self.assertIn(self.project_completed.id, response.data['projects'])
+        self.assertEqual(response.data['project_name'], f"{self.project_active.name}, {self.project_completed.name}")
+
+    def test_task_no_project(self):
+        url = reverse('task-list')
+        payload = {
+            "projects": [],
+            "title": "Standalone Task",
+            "description": "Task with no project associated",
+            "due_date": str(date.today()),
+            "assigned_to": self.contributor.id,
+            "is_completed": False
+        }
+        response = self.client.post(url, payload, format='json')
+        self.assertEqual(len(response.data['projects']), 0)
+        self.assertEqual(response.data['project_name'], "")
+
+    def test_task_status_sync(self):
+        task1 = Task.objects.create(
+            title="Sync Task 1",
+            description="Test status syncing",
+            due_date=date.today(),
+            is_completed=True,
+            status="Active"
+        )
+        self.assertEqual(task1.status, "Completed")
+
+        task1.is_completed = False
+        task1.save()
+        self.assertEqual(task1.status, "Active")
+
+        task2 = Task.objects.create(
+            title="Sync Task 2",
+            description="Test status On Hold",
+            due_date=date.today(),
+            is_completed=False,
+            status="On Hold"
+        )
+        self.assertEqual(task2.status, "On Hold")
+
+
+

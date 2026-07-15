@@ -14,6 +14,11 @@ class ContributorAdmin(admin.ModelAdmin):
 
 @admin.register(Task)
 class TaskAdmin(admin.ModelAdmin):
-    list_display = ('title', 'project', 'assigned_to', 'due_date', 'is_completed')
-    list_filter = ('is_completed', 'due_date', 'project')
+    list_display = ('title', 'display_projects', 'assigned_to', 'due_date', 'is_completed')
+    list_filter = ('is_completed', 'due_date', 'projects')
     search_fields = ('title', 'description')
+
+    def display_projects(self, obj):
+        return ", ".join([p.name for p in obj.projects.all()])
+    display_projects.short_description = 'Projects'
+

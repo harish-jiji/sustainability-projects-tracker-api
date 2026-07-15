@@ -15,7 +15,24 @@ window.addEventListener('DOMContentLoaded', () => {
     initApp();
 });
 
+let projectDatePicker;
+let taskDatePicker;
+
 async function initApp() {
+    // Initialize Flatpickr calendars
+    if (typeof flatpickr !== 'undefined') {
+        projectDatePicker = flatpickr('#project-due-date', {
+            theme: 'dark',
+            dateFormat: 'Y-m-d',
+            allowInput: true
+        });
+        taskDatePicker = flatpickr('#task-due-date', {
+            theme: 'dark',
+            dateFormat: 'Y-m-d',
+            allowInput: true
+        });
+    }
+
     // Load statistics and datasets
     await Promise.all([
         fetchSidebarStats(),
@@ -81,6 +98,61 @@ function showNotification(message, type = 'success') {
     }, 3000);
 }
 
+// Dynamic Error Modal Popup
+function showErrorModal(title, errorData) {
+    let errorHTML = '';
+    if (typeof errorData === 'string') {
+        errorHTML = `<p class="text-sm text-slate-300">${errorData}</p>`;
+    } else if (typeof errorData === 'object' && errorData !== null) {
+        errorHTML = '<ul class="space-y-2 text-sm text-slate-300 list-disc pl-5">';
+        for (const [key, value] of Object.entries(errorData)) {
+            const fieldName = key.charAt(0).toUpperCase() + key.slice(1);
+            const messages = Array.isArray(value) ? value.join(', ') : value;
+            errorHTML += `<li><strong class="text-rose-400">${fieldName}:</strong> ${messages}</li>`;
+        }
+        errorHTML += '</ul>';
+    } else {
+        errorHTML = `<p class="text-sm text-slate-300">An unexpected error occurred.</p>`;
+    }
+
+    // Remove existing modal if any
+    const existing = document.getElementById('dynamic-error-modal');
+    if (existing) existing.remove();
+
+    // Create the modal container
+    const modalDiv = document.createElement('div');
+    modalDiv.id = 'dynamic-error-modal';
+    modalDiv.className = 'fixed inset-0 z-[100] flex items-center justify-center';
+    modalDiv.innerHTML = `
+        <div class="absolute inset-0 bg-slate-950/85 backdrop-blur-sm"></div>
+        <div class="relative bg-slate-900 border border-rose-500/30 rounded-2xl w-full max-w-md p-6 shadow-2xl z-10 mx-4 transition-all duration-300 transform scale-95 opacity-0">
+            <div class="flex items-center space-x-3 pb-3 border-b border-slate-800 text-rose-500">
+                <i class="fa-solid fa-triangle-exclamation text-2xl animate-pulse"></i>
+                <h3 class="text-lg font-bold text-white">${title}</h3>
+            </div>
+            <div class="py-4">
+                ${errorHTML}
+            </div>
+            <div class="flex justify-end pt-3 border-t border-slate-800">
+                <button onclick="document.getElementById('dynamic-error-modal').remove()" class="px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-600/20 transition-all duration-200">
+                    Dismiss
+                </button>
+            </div>
+        </div>
+    `;
+
+    document.body.appendChild(modalDiv);
+
+    // Animate scale/opacity in
+    setTimeout(() => {
+        const content = modalDiv.querySelector('.relative');
+        if (content) {
+            content.classList.remove('scale-95', 'opacity-0');
+            content.classList.add('scale-100', 'opacity-100');
+        }
+    }, 50);
+}
+
 // Fetch Stats Sidebar
 async function fetchSidebarStats() {
     try {
@@ -131,13 +203,22 @@ async function fetchProjectsListOnly() {
 }
 
 function populateTaskFormDropdowns() {
-    // Projects
-    const projSelect = document.getElementById('task-project');
-    if (projSelect) {
-        projSelect.innerHTML = '<option value="">Select Project...</option>';
-        allProjectsRaw.forEach(p => {
-            projSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
-        });
+    // Projects (rendered as list of checkboxes)
+    const projContainer = document.getElementById('task-projects-container');
+    if (projContainer) {
+        projContainer.innerHTML = '';
+        if (allProjectsRaw.length === 0) {
+            projContainer.innerHTML = '<span class="text-xs text-slate-500 italic">No projects available</span>';
+        } else {
+            allProjectsRaw.forEach(p => {
+                projContainer.innerHTML += `
+                    <div class="flex items-center space-x-3 py-1">
+                        <input type="checkbox" name="task-projects" value="${p.id}" id="task-project-${p.id}" class="h-4 w-4 rounded border-slate-800 bg-slate-950 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900" onchange="onProjectCheckboxChange(this)">
+                        <label for="task-project-${p.id}" class="text-sm text-slate-300 select-none cursor-pointer">${p.name}</label>
+                    </div>
+                `;
+            });
+        }
     }
 
     // Contributors
@@ -147,6 +228,68 @@ function populateTaskFormDropdowns() {
         allContributorsRaw.forEach(c => {
             contSelect.innerHTML += `<option value="${c.id}">${c.name}</option>`;
         });
+    }
+}
+
+// Automatically autofills description and due date when a project checkbox is selected
+function onProjectCheckboxChange(checkbox) {
+    if (checkbox.checked) {
+        const projectId = parseInt(checkbox.value);
+        const project = allProjectsRaw.find(p => p.id === projectId);
+        if (project) {
+            if (project.name) {
+                const titleField = document.getElementById('task-title');
+                if (titleField) titleField.value = project.name;
+            }
+            if (project.description) {
+                const descField = document.getElementById('task-description');
+                if (descField) descField.value = project.description;
+            }
+            if (project.due_date) {
+                const dueDateField = document.getElementById('task-due-date');
+                if (dueDateField) {
+                    if (taskDatePicker) {
+                        taskDatePicker.setDate(project.due_date);
+                    } else {
+                        dueDateField.value = project.due_date;
+                    }
+                }
+            }
+            if (project.status) {
+                const statusField = document.getElementById('task-status');
+                if (statusField) {
+                    statusField.value = project.status;
+                    onTaskStatusChange();
+                }
+            }
+        }
+    }
+}
+
+// Two-way synchronization between completion checkbox and status dropdown
+function onTaskStatusChange() {
+    const statusField = document.getElementById('task-status');
+    const compCheckbox = document.getElementById('task-is-completed');
+    if (statusField && compCheckbox) {
+        if (statusField.value === 'Completed') {
+            compCheckbox.checked = true;
+        } else {
+            compCheckbox.checked = false;
+        }
+    }
+}
+
+function onTaskCompletedCheckboxChange() {
+    const compCheckbox = document.getElementById('task-is-completed');
+    const statusField = document.getElementById('task-status');
+    if (compCheckbox && statusField) {
+        if (compCheckbox.checked) {
+            statusField.value = 'Completed';
+        } else {
+            if (statusField.value === 'Completed') {
+                statusField.value = 'Active';
+            }
+        }
     }
 }
 
@@ -184,6 +327,33 @@ async function fetchProjects() {
             const completed = proj.completed_task_count || 0;
             const percent = total > 0 ? Math.round((completed / total) * 100) : 0;
 
+            // Render tasks details (connections)
+            let tasksListHtml = '';
+            if (proj.tasks_details && proj.tasks_details.length > 0) {
+                tasksListHtml = `
+                    <div class="mt-4 pt-4 border-t border-slate-800/60">
+                        <span class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Connected Tasks</span>
+                        <ul class="space-y-1.5">
+                            ${proj.tasks_details.slice(0, 3).map(t => `
+                                <li class="flex items-center space-x-2 text-xs text-slate-300">
+                                    ${t.is_completed 
+                                        ? '<i class="fa-solid fa-circle-check text-emerald-500"></i>' 
+                                        : '<i class="fa-regular fa-circle text-slate-600"></i>'}
+                                    <span class="${t.is_completed ? 'line-through text-slate-500' : ''} line-clamp-1">${t.title}</span>
+                                </li>
+                            `).join('')}
+                            ${proj.tasks_details.length > 3 ? `<li class="text-[10px] text-slate-500 font-medium pl-5">+ ${proj.tasks_details.length - 3} more task(s)</li>` : ''}
+                        </ul>
+                    </div>
+                `;
+            } else {
+                tasksListHtml = `
+                    <div class="mt-4 pt-4 border-t border-slate-800/60 text-xs text-slate-500 italic">
+                        No connected tasks
+                    </div>
+                `;
+            }
+
             const card = document.createElement('div');
             card.className = "bg-slate-900 border border-slate-800/80 rounded-2xl p-6 hover:border-slate-700 transition-all duration-300 flex flex-col justify-between";
             card.innerHTML = `
@@ -194,21 +364,42 @@ async function fetchProjects() {
                         </span>
                         <div class="flex items-center space-x-2">
                             <button onclick="editProject(${proj.id})" class="text-slate-400 hover:text-white p-1.5 hover:bg-slate-800 rounded-lg transition-all duration-150"><i class="fa-regular fa-pen-to-square"></i></button>
-                            <button onclick="deleteProject(${proj.id})" class="text-slate-400 hover:text-rose-400 p-1.5 hover:bg-slate-800 rounded-lg transition-all duration-150"><i class="fa-regular fa-trash-can"></i></button>
+                            <button onclick="deleteProject(${proj.id})" class="text-slate-400 hover:text-rose-400 p-1.5 hover:bg-slate-850 rounded-lg transition-all duration-150"><i class="fa-regular fa-trash-can"></i></button>
                         </div>
                     </div>
                     <h3 class="text-lg font-bold text-white mb-2 line-clamp-1">${proj.name}</h3>
-                    <p class="text-sm text-slate-400 mb-6 line-clamp-2 h-10">${proj.description}</p>
+                    
+                    <!-- Collapsible details section -->
+                    <div id="project-details-${proj.id}" class="hidden space-y-4 pt-4 mt-4 border-t border-slate-800/60 transition-all duration-300">
+                        <p class="text-sm text-slate-400 h-auto whitespace-pre-wrap">${proj.description}</p>
+                        
+                        <div class="flex flex-col gap-1.5 text-xs font-medium text-slate-400">
+                            <div class="flex items-center">
+                                <span class="inline-flex items-center"><i class="fa-solid fa-location-dot mr-1.5 text-slate-500"></i>${proj.location}</span>
+                            </div>
+                            <div class="flex items-center text-slate-500">
+                                <i class="fa-regular fa-calendar mr-1.5 text-slate-500"></i>
+                                <span>Due: ${proj.due_date ? new Date(proj.due_date).toLocaleDateString() : 'No deadline'}</span>
+                            </div>
+                        </div>
+
+                        ${tasksListHtml}
+                    </div>
                 </div>
                 
-                <div class="space-y-4 pt-4 border-t border-slate-800/60">
+                <div class="space-y-4 pt-4 border-t border-slate-800/60 mt-4">
                     <div class="flex items-center justify-between text-xs font-medium text-slate-400">
-                        <span class="inline-flex items-center"><i class="fa-solid fa-location-dot mr-1.5 text-slate-500"></i>${proj.location}</span>
+                        <span>Progress</span>
                         <span>${completed}/${total} Tasks (${percent}%)</span>
                     </div>
                     <div class="w-full bg-slate-950 h-2 rounded-full overflow-hidden">
                         <div class="bg-gradient-to-r from-emerald-500 to-teal-500 h-full rounded-full transition-all duration-500" style="width: ${percent}%"></div>
                     </div>
+                    
+                    <button onclick="toggleProjectDetails(${proj.id}, this)" class="w-full py-2 px-3 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all duration-150 flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                        <span>View Details</span>
+                    </button>
                 </div>
             `;
             grid.appendChild(card);
@@ -228,7 +419,8 @@ async function saveProject(e) {
         name: document.getElementById('project-name').value,
         description: document.getElementById('project-description').value,
         location: document.getElementById('project-location').value,
-        status: document.getElementById('project-status').value
+        status: document.getElementById('project-status').value,
+        due_date: document.getElementById('project-due-date').value || null
     };
 
     const method = id ? 'PUT' : 'POST';
@@ -247,10 +439,10 @@ async function saveProject(e) {
             initApp();
         } else {
             const errData = await res.json();
-            showNotification(JSON.stringify(errData), "error");
+            showErrorModal("Failed to Save Project", errData);
         }
     } catch (err) {
-        showNotification("Network error occurred", "error");
+        showErrorModal("Network Error", "A network error occurred while communicating with the server.");
     }
 }
 
@@ -264,6 +456,11 @@ async function editProject(id) {
         document.getElementById('project-description').value = proj.description;
         document.getElementById('project-location').value = proj.location;
         document.getElementById('project-status').value = proj.status;
+        if (projectDatePicker) {
+            projectDatePicker.setDate(proj.due_date || '');
+        } else {
+            document.getElementById('project-due-date').value = proj.due_date || '';
+        }
 
         document.getElementById('modal-project-title').innerText = "Edit Project";
         openModal('project');
@@ -320,8 +517,30 @@ async function fetchTasks() {
                 ? '<span class="ml-2 inline-flex items-center rounded bg-rose-500/10 px-2 py-0.5 text-xs font-medium text-rose-400 border border-rose-500/20">Overdue</span>'
                 : '';
 
-            const row = document.createElement('tr');
-            row.className = "hover:bg-slate-900/30 transition-colors duration-150";
+            // Render project connections as badges
+            let projectsBadgesHtml = '';
+            if (task.projects_details && task.projects_details.length > 0) {
+                projectsBadgesHtml = task.projects_details.map(p => `
+                    <span class="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-semibold text-emerald-400 border border-emerald-500/20 mr-1 mb-1 shadow-sm shadow-emerald-500/5">
+                        ${p.name}
+                    </span>
+                `).join('');
+            } else {
+                projectsBadgesHtml = '<span class="italic text-slate-600">No project</span>';
+            }
+
+            // Render status badge
+            let statusBadgeHtml = '';
+            if (task.status === 'Active') {
+                statusBadgeHtml = '<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">Active</span>';
+            } else if (task.status === 'Completed') {
+                statusBadgeHtml = '<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-500/10 text-sky-400 border border-sky-500/20">Completed</span>';
+            } else {
+                statusBadgeHtml = '<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-500/10 text-amber-400 border-amber-500/20">On Hold</span>';
+            }
+
+             const row = document.createElement('tr');
+            row.className = "hover:bg-slate-900/30 transition-colors duration-150 border-b border-slate-800/40";
             row.innerHTML = `
                 <td class="px-6 py-4 whitespace-nowrap">
                     <button onclick="toggleTaskCompletion(${task.id}, ${task.is_completed})" class="focus:outline-none transition-transform active:scale-90">
@@ -330,10 +549,11 @@ async function fetchTasks() {
                 </td>
                 <td class="px-6 py-4">
                     <div class="text-sm font-semibold text-white flex items-center">${task.title} ${overdueBadge}</div>
-                    <div class="text-xs text-slate-400 mt-0.5 line-clamp-1">${task.description}</div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-300 font-medium">
-                    ${task.project_name}
+                <td class="px-6 py-4 whitespace-normal text-sm font-medium">
+                    <div class="flex flex-wrap max-w-[200px]">
+                        ${projectsBadgesHtml}
+                    </div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-slate-400">
                     ${task.assigned_to_name ? `<span class="text-slate-300 font-medium"><i class="fa-regular fa-user mr-1.5 text-slate-500"></i>${task.assigned_to_name}</span>` : '<span class="italic text-slate-600">Unassigned</span>'}
@@ -341,14 +561,47 @@ async function fetchTasks() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${task.is_overdue ? 'text-rose-400 font-bold' : 'text-slate-400'}">
                     <i class="fa-regular fa-calendar mr-1.5 text-slate-500"></i>${task.due_date}
                 </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    ${statusBadgeHtml}
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium pr-6">
                     <div class="flex items-center justify-end space-x-1.5">
+                        <button onclick="toggleTaskDetails(${task.id}, this)" class="text-slate-400 hover:text-emerald-400 p-1.5 hover:bg-slate-800 rounded-lg transition-all duration-150" title="View Details"><i class="fa-regular fa-eye"></i></button>
                         <button onclick="editTask(${task.id})" class="text-slate-400 hover:text-white p-1.5 hover:bg-slate-800 rounded-lg transition-all duration-150"><i class="fa-regular fa-pen-to-square"></i></button>
                         <button onclick="deleteTask(${task.id})" class="text-slate-400 hover:text-rose-400 p-1.5 hover:bg-slate-800 rounded-lg transition-all duration-150"><i class="fa-regular fa-trash-can"></i></button>
                     </div>
                 </td>
             `;
             tbody.appendChild(row);
+
+            const detailsRow = document.createElement('tr');
+            detailsRow.id = `task-details-row-${task.id}`;
+            detailsRow.className = "hidden bg-slate-950/40";
+            detailsRow.innerHTML = `
+                <td colspan="7" class="px-8 py-4 border-b border-slate-800/60">
+                    <div class="space-y-3 text-sm text-slate-300">
+                        <div>
+                            <span class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Task Description</span>
+                            <p class="text-slate-200 font-medium whitespace-pre-wrap">${task.description || 'No checklist or description provided.'}</p>
+                        </div>
+                        <div class="grid grid-cols-2 gap-4 pt-3 border-t border-slate-800/40">
+                            <div>
+                                <span class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Connected Projects</span>
+                                <div class="flex flex-wrap gap-1 mt-1">
+                                    ${projectsBadgesHtml}
+                                </div>
+                            </div>
+                            <div>
+                                <span class="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Assignee Details</span>
+                                ${task.assigned_to_name 
+                                    ? `<p class="text-slate-200 font-medium"><i class="fa-regular fa-user mr-1.5 text-slate-500"></i>${task.assigned_to_name} (${task.assigned_to_email})</p>` 
+                                    : '<p class="italic text-slate-550">Unassigned</p>'}
+                            </div>
+                        </div>
+                    </div>
+                </td>
+            `;
+            tbody.appendChild(detailsRow);
         });
 
         renderPagination('tasks', data, tasksPage);
@@ -360,14 +613,22 @@ async function fetchTasks() {
 
 async function saveTask(e) {
     e.preventDefault();
+
+    const selectedProjects = [];
+    const checkboxes = document.getElementsByName('task-projects');
+    checkboxes.forEach(cb => {
+        if (cb.checked) selectedProjects.push(parseInt(cb.value));
+    });
+
     const id = document.getElementById('task-id').value;
     const payload = {
-        project: document.getElementById('task-project').value,
+        projects: selectedProjects,
         title: document.getElementById('task-title').value,
         description: document.getElementById('task-description').value,
         due_date: document.getElementById('task-due-date').value,
         assigned_to: document.getElementById('task-assignee').value || null,
-        is_completed: document.getElementById('task-is-completed').checked
+        is_completed: document.getElementById('task-is-completed').checked,
+        status: document.getElementById('task-status').value
     };
 
     const method = id ? 'PUT' : 'POST';
@@ -387,10 +648,10 @@ async function saveTask(e) {
             if (currentTab === 'tasks') fetchTasks();
         } else {
             const errData = await res.json();
-            showNotification(JSON.stringify(errData), "error");
+            showErrorModal("Failed to Save Task", errData);
         }
     } catch (err) {
-        showNotification("Network error occurred", "error");
+        showErrorModal("Network Error", "A network error occurred while communicating with the server.");
     }
 }
 
@@ -403,12 +664,23 @@ async function editTask(id) {
         const task = await res.json();
         
         document.getElementById('task-id').value = task.id;
-        document.getElementById('task-project').value = task.project;
+        
+        // Check corresponding project checkboxes
+        const checkboxes = document.getElementsByName('task-projects');
+        checkboxes.forEach(cb => {
+            cb.checked = task.projects.includes(parseInt(cb.value));
+        });
+
         document.getElementById('task-title').value = task.title;
         document.getElementById('task-description').value = task.description;
-        document.getElementById('task-due-date').value = task.due_date;
+        if (taskDatePicker) {
+            taskDatePicker.setDate(task.due_date || '');
+        } else {
+            document.getElementById('task-due-date').value = task.due_date;
+        }
         document.getElementById('task-assignee').value = task.assigned_to || '';
         document.getElementById('task-is-completed').checked = task.is_completed;
+        document.getElementById('task-status').value = task.status || 'Active';
 
         document.getElementById('modal-task-title').innerText = "Edit Task";
         openModal('task');
@@ -486,19 +758,29 @@ async function fetchContributors() {
                         </div>
                         <div class="flex items-center space-x-1.5">
                             <button onclick="editContributor(${cont.id})" class="text-slate-400 hover:text-white p-1.5 hover:bg-slate-800 rounded-lg transition-all duration-150"><i class="fa-regular fa-pen-to-square"></i></button>
-                            <button onclick="deleteContributor(${cont.id})" class="text-slate-400 hover:text-rose-400 p-1.5 hover:bg-slate-800 rounded-lg transition-all duration-150"><i class="fa-regular fa-trash-can"></i></button>
+                            <button onclick="deleteContributor(${cont.id})" class="text-slate-400 hover:text-rose-400 p-1.5 hover:bg-slate-850 rounded-lg transition-all duration-150"><i class="fa-regular fa-trash-can"></i></button>
                         </div>
                     </div>
                     <h3 class="text-base font-bold text-white">${cont.name}</h3>
                     <p class="text-xs text-slate-400 mt-1">${cont.email}</p>
                     
-                    <div class="mt-4">
-                        <span class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Expertise / Skills</span>
-                        <div class="flex flex-wrap gap-1.5">${skillBadges}</div>
+                    <!-- Collapsible details section -->
+                    <div id="contributor-details-${cont.id}" class="hidden space-y-4 mt-4 pt-4 border-t border-slate-800/60 transition-all duration-300">
+                        <div>
+                            <span class="block text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Expertise / Skills</span>
+                            <div class="flex flex-wrap gap-1.5">${skillBadges}</div>
+                        </div>
+                        <div class="text-[10px] text-slate-500">
+                            Joined on ${new Date(cont.joined_on).toLocaleDateString()}
+                        </div>
                     </div>
                 </div>
-                <div class="pt-4 border-t border-slate-800/60 mt-6 text-[10px] text-slate-500">
-                    Joined on ${new Date(cont.joined_on).toLocaleDateString()}
+                
+                <div class="mt-4 pt-4 border-t border-slate-800/60">
+                    <button onclick="toggleContributorDetails(${cont.id}, this)" class="w-full py-2 px-3 border border-slate-800 rounded-xl text-xs font-semibold text-slate-300 hover:text-white hover:bg-slate-800/60 transition-all duration-150 flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                        <span>View Skills</span>
+                    </button>
                 </div>
             `;
             grid.appendChild(card);
@@ -537,10 +819,10 @@ async function saveContributor(e) {
             if (currentTab === 'contributors') fetchContributors();
         } else {
             const errData = await res.json();
-            showNotification(JSON.stringify(errData), "error");
+            showErrorModal("Failed to Save Contributor", errData);
         }
     } catch (err) {
-        showNotification("Network error occurred", "error");
+        showErrorModal("Network Error", "A network error occurred while communicating with the server.");
     }
 }
 
@@ -629,6 +911,16 @@ async function openModal(type) {
 }
 
 function closeModal(type) {
+    if (type === 'project' && projectDatePicker) projectDatePicker.clear();
+    if (type === 'task' && taskDatePicker) taskDatePicker.clear();
+
+    if (type === 'task') {
+        const checkboxes = document.getElementsByName('task-projects');
+        checkboxes.forEach(cb => {
+            cb.checked = false;
+        });
+    }
+
     const modal = document.getElementById(`modal-${type}`);
     if (modal) modal.classList.add('hidden');
     
@@ -680,4 +972,53 @@ function getSkeletonHTML(count) {
         `;
     }
     return html;
+}
+
+// Toggle view functions for collapsible details
+function toggleProjectDetails(id, btn) {
+    const details = document.getElementById(`project-details-${id}`);
+    if (details) {
+        const isHidden = details.classList.contains('hidden');
+        if (isHidden) {
+            details.classList.remove('hidden');
+            btn.querySelector('span').innerText = 'Hide Details';
+            btn.querySelector('i').className = 'fa-solid fa-chevron-up text-[10px]';
+        } else {
+            details.classList.add('hidden');
+            btn.querySelector('span').innerText = 'View Details';
+            btn.querySelector('i').className = 'fa-solid fa-chevron-down text-[10px]';
+        }
+    }
+}
+
+function toggleTaskDetails(id, btn) {
+    const detailsRow = document.getElementById(`task-details-row-${id}`);
+    if (detailsRow) {
+        const isHidden = detailsRow.classList.contains('hidden');
+        if (isHidden) {
+            detailsRow.classList.remove('hidden');
+            btn.innerHTML = '<i class="fa-regular fa-eye-slash"></i>';
+            btn.classList.add('text-emerald-400');
+        } else {
+            detailsRow.classList.add('hidden');
+            btn.innerHTML = '<i class="fa-regular fa-eye"></i>';
+            btn.classList.remove('text-emerald-400');
+        }
+    }
+}
+
+function toggleContributorDetails(id, btn) {
+    const details = document.getElementById(`contributor-details-${id}`);
+    if (details) {
+        const isHidden = details.classList.contains('hidden');
+        if (isHidden) {
+            details.classList.remove('hidden');
+            btn.querySelector('span').innerText = 'Hide Skills';
+            btn.querySelector('i').className = 'fa-solid fa-chevron-up text-[10px]';
+        } else {
+            details.classList.add('hidden');
+            btn.querySelector('span').innerText = 'View Skills';
+            btn.querySelector('i').className = 'fa-solid fa-chevron-down text-[10px]';
+        }
+    }
 }
