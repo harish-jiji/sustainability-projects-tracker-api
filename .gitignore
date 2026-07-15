@@ -13,6 +13,7 @@ ENV/pyvenv.cfg
 # Local environment variables
 .env
 .env.*
+!.env.example
 
 # Databases
 *.sqlite3
