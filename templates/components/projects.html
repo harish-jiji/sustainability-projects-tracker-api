@@ -1,0 +1,31 @@
+<div id="content-projects" class="space-y-6">
+    <!-- Toolbar -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+            <h2 class="text-2xl font-bold text-white">Sustainability Projects</h2>
+            <p class="text-sm text-slate-400 mt-1">Manage and track ecological initiatives.</p>
+        </div>
+        <div class="flex items-center gap-3">
+            <select onchange="fetchProjects()" id="filter-project-status" class="bg-slate-900 border border-slate-800 text-slate-300 text-sm rounded-xl px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                <option value="">All Statuses</option>
+                <option value="Active">Active</option>
+                <option value="Completed">Completed</option>
+                <option value="On Hold">On Hold</option>
+            </select>
+            <button onclick="openModal('project')" class="inline-flex items-center space-x-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-sm rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200">
+                <i class="fa-solid fa-plus"></i>
+                <span>New Project</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Projects Grid -->
+    <div id="projects-grid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Skeletons will go here -->
+    </div>
+
+    <!-- Pagination -->
+    <div id="projects-pagination" class="flex justify-between items-center bg-slate-900/40 p-4 rounded-xl border border-slate-800">
+        <!-- Dynamic -->
+    </div>
+</div>
