@@ -128,3 +128,42 @@
         </form>
     </div>
 </div>
+
+<!-- MODAL: DELETE CONFIRMATION -->
+<div id="modal-delete" class="fixed inset-0 z-[100] flex items-center justify-center hidden">
+    <div class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" onclick="closeDeleteModal()"></div>
+    <div class="relative bg-slate-900 border border-rose-500/30 rounded-2xl w-full max-w-md p-6 shadow-2xl z-10 mx-4">
+        <div class="flex items-center space-x-3 pb-3 border-b border-slate-800 text-rose-500">
+            <i class="fa-solid fa-triangle-exclamation text-2xl animate-pulse"></i>
+            <h3 class="text-lg font-bold text-white">Confirm Deletion</h3>
+        </div>
+        <div class="py-4 space-y-4">
+            <p class="text-sm text-slate-300">
+                Warning: If you delete this item, you will lose the data permanently. This action cannot be undone.
+            </p>
+            
+            <div class="bg-slate-950/60 p-4 rounded-xl border border-slate-850 flex flex-col items-center justify-center space-y-3">
+                <span class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Verification Code</span>
+                <!-- Captcha display -->
+                <div class="flex items-center space-x-3 select-none">
+                    <span id="delete-captcha-display" class="font-mono text-xl font-black tracking-widest text-rose-400 bg-rose-500/10 px-4 py-2 rounded-lg border border-rose-500/20 line-through decoration-wavy decoration-slate-650">
+                        XXXXX
+                    </span>
+                    <button type="button" onclick="generateDeleteCaptcha()" class="text-slate-400 hover:text-white p-1.5 hover:bg-slate-800 rounded-lg transition-colors duration-150" title="Refresh Captcha">
+                        <i class="fa-solid fa-arrows-rotate text-sm"></i>
+                    </button>
+                </div>
+            </div>
+
+            <div>
+                <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Type the code above to confirm</label>
+                <input type="text" id="delete-captcha-input" placeholder="Enter verification code..." oninput="checkDeleteCaptcha()" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm font-mono text-center tracking-widest focus:outline-none focus:ring-2 focus:ring-rose-500">
+            </div>
+        </div>
+        <div class="flex justify-end gap-3 pt-4 border-t border-slate-800">
+            <button type="button" onclick="closeDeleteModal()" class="px-4 py-2.5 border border-slate-800 rounded-xl text-slate-400 hover:text-white text-sm font-semibold transition-all duration-200">Cancel</button>
+            <button type="button" id="btn-confirm-delete" disabled onclick="executeDelete()" class="px-5 py-2.5 bg-rose-650/40 text-rose-400 font-bold text-sm rounded-xl cursor-not-allowed transition-all duration-200">Delete Permanently</button>
+        </div>
+    </div>
+</div>
+

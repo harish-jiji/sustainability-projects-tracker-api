@@ -10,6 +10,11 @@ let contributorsPage = 1;
 let allProjectsRaw = [];
 let allContributorsRaw = [];
 
+// Delete Confirmation Modal State
+let deleteTargetType = null;
+let deleteTargetId = null;
+let currentDeleteCaptcha = '';
+
 // Application Start
 window.addEventListener('DOMContentLoaded', () => {
     initApp();
@@ -469,19 +474,8 @@ async function editProject(id) {
     }
 }
 
-async function deleteProject(id) {
-    if (!confirm("Are you sure you want to delete this project? All associated tasks will be removed.")) return;
-    try {
-        const res = await fetch(`${API_BASE}/projects/${id}/`, { method: 'DELETE' });
-        if (res.ok) {
-            showNotification("Project deleted successfully");
-            initApp();
-        } else {
-            showNotification("Failed to delete project", "error");
-        }
-    } catch (err) {
-        showNotification("Network error occurred", "error");
-    }
+function deleteProject(id) {
+    openDeleteModal('project', id);
 }
 
 // ------------------ TASKS CRUD ------------------
@@ -708,20 +702,8 @@ async function toggleTaskCompletion(id, currentStatus) {
     }
 }
 
-async function deleteTask(id) {
-    if (!confirm("Are you sure you want to delete this task?")) return;
-    try {
-        const res = await fetch(`${API_BASE}/tasks/${id}/`, { method: 'DELETE' });
-        if (res.ok) {
-            showNotification("Task deleted");
-            initApp();
-            if (currentTab === 'tasks') fetchTasks();
-        } else {
-            showNotification("Failed to delete task", "error");
-        }
-    } catch (err) {
-        showNotification("Network error occurred", "error");
-    }
+function deleteTask(id) {
+    openDeleteModal('task', id);
 }
 
 // ------------------ CONTRIBUTORS CRUD ------------------
@@ -843,20 +825,8 @@ async function editContributor(id) {
     }
 }
 
-async function deleteContributor(id) {
-    if (!confirm("Are you sure you want to remove this contributor? Tasks assigned to this contributor will be unassigned.")) return;
-    try {
-        const res = await fetch(`${API_BASE}/contributors/${id}/`, { method: 'DELETE' });
-        if (res.ok) {
-            showNotification("Contributor removed");
-            initApp();
-            if (currentTab === 'contributors') fetchContributors();
-        } else {
-            showNotification("Failed to remove contributor", "error");
-        }
-    } catch (err) {
-        showNotification("Network error occurred", "error");
-    }
+function deleteContributor(id) {
+    openDeleteModal('contributor', id);
 }
 
 // ------------------ PAGINATION RENDER ------------------
@@ -1020,5 +990,105 @@ function toggleContributorDetails(id, btn) {
             btn.querySelector('span').innerText = 'View Skills';
             btn.querySelector('i').className = 'fa-solid fa-chevron-down text-[10px]';
         }
+    }
+}
+
+// Custom Delete Confirmation and Captcha Verification
+function openDeleteModal(type, id) {
+    deleteTargetType = type;
+    deleteTargetId = id;
+    
+    const input = document.getElementById('delete-captcha-input');
+    if (input) input.value = '';
+    
+    const btn = document.getElementById('btn-confirm-delete');
+    if (btn) {
+        btn.disabled = true;
+        btn.className = "px-5 py-2.5 bg-rose-950/40 text-rose-500/50 font-bold text-sm rounded-xl cursor-not-allowed transition-all duration-200";
+    }
+    
+    generateDeleteCaptcha();
+    
+    const modal = document.getElementById('modal-delete');
+    if (modal) modal.classList.remove('hidden');
+}
+
+function closeDeleteModal() {
+    deleteTargetType = null;
+    deleteTargetId = null;
+    currentDeleteCaptcha = '';
+    
+    const modal = document.getElementById('modal-delete');
+    if (modal) modal.classList.add('hidden');
+}
+
+function generateDeleteCaptcha() {
+    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // Removed ambiguous characters (1, I, 0, O)
+    let code = '';
+    for (let i = 0; i < 5; i++) {
+        code += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    currentDeleteCaptcha = code;
+    
+    const display = document.getElementById('delete-captcha-display');
+    if (display) display.innerText = code;
+}
+
+function checkDeleteCaptcha() {
+    const input = document.getElementById('delete-captcha-input');
+    const btn = document.getElementById('btn-confirm-delete');
+    if (input && btn) {
+        if (input.value.trim().toUpperCase() === currentDeleteCaptcha) {
+            btn.disabled = false;
+            btn.className = "px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-600/20 transition-all duration-200 cursor-pointer";
+        } else {
+            btn.disabled = true;
+            btn.className = "px-5 py-2.5 bg-rose-955/40 text-rose-500/50 font-bold text-sm rounded-xl cursor-not-allowed transition-all duration-200";
+        }
+    }
+}
+
+async function executeDelete() {
+    const type = deleteTargetType;
+    const id = deleteTargetId;
+    if (!type || !id) return;
+
+    let url = '';
+    let successMessage = '';
+    let refreshCallback = null;
+
+    if (type === 'project') {
+        url = `${API_BASE}/projects/${id}/`;
+        successMessage = "Project deleted successfully";
+        refreshCallback = () => {
+            initApp();
+        };
+    } else if (type === 'task') {
+        url = `${API_BASE}/tasks/${id}/`;
+        successMessage = "Task deleted";
+        refreshCallback = () => {
+            initApp();
+            if (currentTab === 'tasks') fetchTasks();
+        };
+    } else if (type === 'contributor') {
+        url = `${API_BASE}/contributors/${id}/`;
+        successMessage = "Contributor removed";
+        refreshCallback = () => {
+            initApp();
+            if (currentTab === 'contributors') fetchContributors();
+        };
+    }
+
+    try {
+        const res = await fetch(url, { method: 'DELETE' });
+        if (res.ok) {
+            showNotification(successMessage);
+            closeDeleteModal();
+            if (refreshCallback) refreshCallback();
+        } else {
+            showNotification(`Failed to delete ${type}`, "error");
+        }
+    } catch (err) {
+        showNotification("Network error occurred", "error");
     }
 }
