@@ -949,6 +949,25 @@ function toggleProjectDetails(id, btn) {
     const details = document.getElementById(`project-details-${id}`);
     if (details) {
         const isHidden = details.classList.contains('hidden');
+        
+        // Find and collapse all other open details
+        document.querySelectorAll('[id^="project-details-"]').forEach(el => {
+            if (el.id !== `project-details-${id}`) {
+                el.classList.add('hidden');
+            }
+        });
+        
+        // Reset all other project toggle buttons to 'View Details'
+        document.querySelectorAll('[onclick^="toggleProjectDetails"]').forEach(el => {
+            if (el !== btn) {
+                const span = el.querySelector('span');
+                if (span) span.innerText = 'View Details';
+                const icon = el.querySelector('i');
+                if (icon) icon.className = 'fa-solid fa-chevron-down text-[10px]';
+            }
+        });
+
+        // Toggle the clicked one
         if (isHidden) {
             details.classList.remove('hidden');
             btn.querySelector('span').innerText = 'Hide Details';
@@ -965,6 +984,23 @@ function toggleTaskDetails(id, btn) {
     const detailsRow = document.getElementById(`task-details-row-${id}`);
     if (detailsRow) {
         const isHidden = detailsRow.classList.contains('hidden');
+        
+        // Find and collapse all other task detail rows
+        document.querySelectorAll('[id^="task-details-row-"]').forEach(el => {
+            if (el.id !== `task-details-row-${id}`) {
+                el.classList.add('hidden');
+            }
+        });
+        
+        // Reset all other task toggle buttons
+        document.querySelectorAll('[onclick^="toggleTaskDetails"]').forEach(el => {
+            if (el !== btn) {
+                el.innerHTML = '<i class="fa-regular fa-eye"></i>';
+                el.classList.remove('text-emerald-400');
+            }
+        });
+
+        // Toggle the clicked one
         if (isHidden) {
             detailsRow.classList.remove('hidden');
             btn.innerHTML = '<i class="fa-regular fa-eye-slash"></i>';
@@ -981,6 +1017,25 @@ function toggleContributorDetails(id, btn) {
     const details = document.getElementById(`contributor-details-${id}`);
     if (details) {
         const isHidden = details.classList.contains('hidden');
+        
+        // Find and collapse all other contributor details
+        document.querySelectorAll('[id^="contributor-details-"]').forEach(el => {
+            if (el.id !== `contributor-details-${id}`) {
+                el.classList.add('hidden');
+            }
+        });
+        
+        // Reset all other contributor toggle buttons to 'View Skills'
+        document.querySelectorAll('[onclick^="toggleContributorDetails"]').forEach(el => {
+            if (el !== btn) {
+                const span = el.querySelector('span');
+                if (span) span.innerText = 'View Skills';
+                const icon = el.querySelector('i');
+                if (icon) icon.className = 'fa-solid fa-chevron-down text-[10px]';
+            }
+        });
+
+        // Toggle the clicked one
         if (isHidden) {
             details.classList.remove('hidden');
             btn.querySelector('span').innerText = 'Hide Skills';
