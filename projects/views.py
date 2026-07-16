@@ -22,6 +22,8 @@ class CacheResponseMixin:
         return f"{self.cache_prefix}_list_{hash_val}"
 
     def list(self, request, *args, **kwargs):
+        if '_' in request.query_params:
+            return super().list(request, *args, **kwargs)
         cache_key = self.get_cache_key(request)
         cached_data = cache.get(cache_key)
         if cached_data is not None:
@@ -32,6 +34,8 @@ class CacheResponseMixin:
         return response
 
     def retrieve(self, request, *args, **kwargs):
+        if '_' in request.query_params:
+            return super().retrieve(request, *args, **kwargs)
         pk = kwargs.get('pk')
         cache_key = self.get_cache_key(request, pk=pk)
         cached_data = cache.get(cache_key)

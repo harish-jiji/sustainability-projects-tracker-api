@@ -161,15 +161,16 @@ function showErrorModal(title, errorData) {
 // Fetch Stats Sidebar
 async function fetchSidebarStats() {
     try {
-        const projRes = await fetch(`${API_BASE}/projects/`);
+        const t = new Date().getTime();
+        const projRes = await fetch(`${API_BASE}/projects/?_=${t}`);
         const projData = await projRes.json();
         document.getElementById('stat-projects').innerText = projData.count || 0;
 
-        const taskRes = await fetch(`${API_BASE}/tasks/`);
+        const taskRes = await fetch(`${API_BASE}/tasks/?_=${t}`);
         const taskData = await taskRes.json();
         document.getElementById('stat-tasks').innerText = taskData.count || 0;
 
-        const overdueRes = await fetch(`${API_BASE}/tasks/?overdue=true`);
+        const overdueRes = await fetch(`${API_BASE}/tasks/?overdue=true&_=${t}`);
         const overdueData = await overdueRes.json();
         document.getElementById('stat-overdue').innerText = overdueData.count || 0;
     } catch (err) {
@@ -177,10 +178,9 @@ async function fetchSidebarStats() {
     }
 }
 
-// Fetch Selector lists without paging for dropdowns
 async function fetchContributorsListOnly() {
     try {
-        const res = await fetch(`${API_BASE}/contributors/?page_size=100`);
+        const res = await fetch(`${API_BASE}/contributors/?page_size=100&_=${new Date().getTime()}`);
         const data = await res.json();
         allContributorsRaw = data.results || [];
         
@@ -199,31 +199,29 @@ async function fetchContributorsListOnly() {
 
 async function fetchProjectsListOnly() {
     try {
-        const res = await fetch(`${API_BASE}/projects/?page_size=100`);
+        const res = await fetch(`${API_BASE}/projects/?page_size=100&_=${new Date().getTime()}`);
         const data = await res.json();
         allProjectsRaw = data.results || [];
+        console.log("fetchProjectsListOnly raw results fetched:", allProjectsRaw);
     } catch (err) {
-        console.error(err);
+        console.error("Error in fetchProjectsListOnly:", err);
     }
 }
 
-function populateTaskFormDropdowns() {
-    // Projects (rendered as list of checkboxes)
-    const projContainer = document.getElementById('task-projects-container');
-    if (projContainer) {
-        projContainer.innerHTML = '';
-        if (allProjectsRaw.length === 0) {
-            projContainer.innerHTML = '<span class="text-xs text-slate-500 italic">No projects available</span>';
-        } else {
-            allProjectsRaw.forEach(p => {
-                projContainer.innerHTML += `
-                    <div class="flex items-center space-x-3 py-1">
-                        <input type="checkbox" name="task-projects" value="${p.id}" id="task-project-${p.id}" class="h-4 w-4 rounded border-slate-800 bg-slate-950 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-slate-900" onchange="onProjectCheckboxChange(this)">
-                        <label for="task-project-${p.id}" class="text-sm text-slate-300 select-none cursor-pointer">${p.name}</label>
-                    </div>
-                `;
-            });
-        }
+function populateTaskFormDropdowns(includeCompletedProjectId = null) {
+    console.log("populateTaskFormDropdowns called. allProjectsRaw:", allProjectsRaw, "includeCompletedProjectId:", includeCompletedProjectId);
+    
+    // Projects (rendered as select option dropdown)
+    const projSelect = document.getElementById('task-project-select');
+    if (projSelect) {
+        projSelect.innerHTML = '<option value="">No Project</option>';
+        const projectsList = Array.isArray(allProjectsRaw) ? allProjectsRaw : [];
+        projectsList.forEach(p => {
+            if (p.status !== 'Completed' || p.id === includeCompletedProjectId) {
+                projSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+            }
+        });
+        console.log("projSelect innerHTML populated:", projSelect.innerHTML);
     }
 
     // Contributors
@@ -236,10 +234,97 @@ function populateTaskFormDropdowns() {
     }
 }
 
-// Automatically autofills description and due date when a project checkbox is selected
-function onProjectCheckboxChange(checkbox) {
-    if (checkbox.checked) {
-        const projectId = parseInt(checkbox.value);
+function getMatchingSkills(contributor, project) {
+    if (!project || !contributor.skills) return [];
+    
+    // Split contributor skills by comma, trim, and filter empty strings
+    const skills = contributor.skills.split(',')
+        .map(s => s.trim())
+        .filter(s => s.length > 0);
+        
+    const searchTarget = ((project.name || "") + " " + (project.description || "")).toLowerCase();
+    
+    // Find all skills that are present in target
+    return skills.filter(skill => {
+        const skillLower = skill.toLowerCase();
+        if (skillLower.length < 2) return false; // Skip too short terms
+        return searchTarget.includes(skillLower);
+    });
+}
+
+function updateAssigneeRecommendations(projectId, selectedAssigneeId = null) {
+    const contSelect = document.getElementById('task-assignee');
+    const recContainer = document.getElementById('task-assignee-recommendations');
+    if (!contSelect) return;
+
+    const currentVal = selectedAssigneeId !== null ? selectedAssigneeId : contSelect.value;
+    const project = allProjectsRaw.find(p => p.id === projectId);
+    
+    contSelect.innerHTML = '<option value="">Unassigned</option>';
+    const recommendedList = [];
+
+    allContributorsRaw.forEach(c => {
+        let matchingSkills = [];
+        if (project) {
+            matchingSkills = getMatchingSkills(c, project);
+        }
+
+        const isRecommended = matchingSkills.length > 0;
+        let displayName = c.name;
+        if (isRecommended) {
+            displayName = `⭐ ${c.name} (Recommended: ${matchingSkills.join(', ')})`;
+            recommendedList.push({
+                id: c.id,
+                name: c.name,
+                skills: matchingSkills
+            });
+        }
+        
+        const opt = document.createElement('option');
+        opt.value = c.id;
+        opt.innerText = displayName;
+        contSelect.appendChild(opt);
+    });
+
+    contSelect.value = currentVal || '';
+
+    if (recContainer) {
+        if (recommendedList.length > 0) {
+            recContainer.classList.remove('hidden');
+            recContainer.className = "mt-2 p-2 bg-emerald-500/5 border border-emerald-500/10 rounded-xl text-[11px] text-slate-350 space-y-1.5";
+            recContainer.innerHTML = `
+                <div class="flex items-center text-emerald-400 font-semibold uppercase tracking-wider text-[10px] gap-1">
+                    <i class="fa-solid fa-wand-magic-sparkles text-emerald-400/80"></i> Recommended Assignees:
+                </div>
+                <div class="flex flex-wrap gap-1.5 pt-0.5">
+                    ${recommendedList.map(rec => `
+                        <button type="button" onclick="selectRecommendedAssignee(${rec.id})" 
+                                class="inline-flex items-center gap-1 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-lg border border-emerald-500/20 hover:border-emerald-500/40 font-medium transition-all duration-150 shadow-sm cursor-pointer"
+                                title="Click to assign to ${rec.name}">
+                            ${rec.name} <span class="text-[9px] opacity-75">(${rec.skills.slice(0, 2).join(', ')})</span>
+                        </button>
+                    `).join('')}
+                </div>
+            `;
+        } else {
+            recContainer.classList.add('hidden');
+            recContainer.innerHTML = '';
+        }
+    }
+}
+
+function selectRecommendedAssignee(id) {
+    const contSelect = document.getElementById('task-assignee');
+    if (contSelect) {
+        contSelect.value = id;
+        showNotification("Recommended assignee selected");
+    }
+}
+
+// Automatically autofills description and due date when a project is selected
+function onProjectSelectChange(select) {
+    const projectId = parseInt(select.value);
+    if (projectId) {
         const project = allProjectsRaw.find(p => p.id === projectId);
         if (project) {
             if (project.name) {
@@ -268,6 +353,9 @@ function onProjectCheckboxChange(checkbox) {
                 }
             }
         }
+        updateAssigneeRecommendations(projectId);
+    } else {
+        updateAssigneeRecommendations(null);
     }
 }
 
@@ -305,7 +393,7 @@ async function fetchProjects() {
     grid.innerHTML = getSkeletonHTML(4);
     
     const statusFilter = document.getElementById('filter-project-status').value;
-    let url = `${API_BASE}/projects/?page=${projectsPage}`;
+    let url = `${API_BASE}/projects/?page=${projectsPage}&_=${new Date().getTime()}`;
     if (statusFilter) url += `&status=${statusFilter}`;
 
     try {
@@ -487,7 +575,7 @@ async function fetchTasks() {
     const assigneeFilter = document.getElementById('filter-task-contributor').value;
     const overdueFilter = document.getElementById('filter-task-overdue').value;
 
-    let url = `${API_BASE}/tasks/?page=${tasksPage}`;
+    let url = `${API_BASE}/tasks/?page=${tasksPage}&_=${new Date().getTime()}`;
     if (assigneeFilter) url += `&contributor=${assigneeFilter}`;
     if (overdueFilter) url += `&overdue=${overdueFilter}`;
 
@@ -608,11 +696,8 @@ async function fetchTasks() {
 async function saveTask(e) {
     e.preventDefault();
 
-    const selectedProjects = [];
-    const checkboxes = document.getElementsByName('task-projects');
-    checkboxes.forEach(cb => {
-        if (cb.checked) selectedProjects.push(parseInt(cb.value));
-    });
+    const select = document.getElementById('task-project-select');
+    const selectedProjects = select && select.value ? [parseInt(select.value)] : [];
 
     const id = document.getElementById('task-id').value;
     const payload = {
@@ -651,19 +736,20 @@ async function saveTask(e) {
 
 async function editTask(id) {
     try {
-        await Promise.all([fetchProjectsListOnly(), fetchContributorsListOnly()]);
-        populateTaskFormDropdowns();
-
         const res = await fetch(`${API_BASE}/tasks/${id}/`);
         const task = await res.json();
-        
+
+        await Promise.all([fetchProjectsListOnly(), fetchContributorsListOnly()]);
+        const currentProjectId = task.projects.length > 0 ? task.projects[0] : null;
+        populateTaskFormDropdowns(currentProjectId);
+
         document.getElementById('task-id').value = task.id;
         
-        // Check corresponding project checkboxes
-        const checkboxes = document.getElementsByName('task-projects');
-        checkboxes.forEach(cb => {
-            cb.checked = task.projects.includes(parseInt(cb.value));
-        });
+        // Select corresponding project in dropdown
+        const projSelect = document.getElementById('task-project-select');
+        if (projSelect) {
+            projSelect.value = task.projects.length > 0 ? task.projects[0] : '';
+        }
 
         document.getElementById('task-title').value = task.title;
         document.getElementById('task-description').value = task.description;
@@ -672,12 +758,12 @@ async function editTask(id) {
         } else {
             document.getElementById('task-due-date').value = task.due_date;
         }
-        document.getElementById('task-assignee').value = task.assigned_to || '';
+        updateAssigneeRecommendations(currentProjectId, task.assigned_to);
         document.getElementById('task-is-completed').checked = task.is_completed;
         document.getElementById('task-status').value = task.status || 'Active';
 
         document.getElementById('modal-task-title').innerText = "Edit Task";
-        openModal('task');
+        openModal('task', true);
     } catch (err) {
         showNotification("Could not fetch task details", "error");
     }
@@ -713,7 +799,7 @@ async function fetchContributors() {
     grid.innerHTML = getSkeletonHTML(3);
 
     try {
-        const res = await fetch(`${API_BASE}/contributors/?page=${contributorsPage}`);
+        const res = await fetch(`${API_BASE}/contributors/?page=${contributorsPage}&_=${new Date().getTime()}`);
         const data = await res.json();
         
         grid.innerHTML = '';
@@ -870,10 +956,11 @@ function changePage(prefix, page) {
 }
 
 // ------------------ MODAL ACTIONS ------------------
-async function openModal(type) {
-    if (type === 'task') {
+async function openModal(type, isEdit = false) {
+    if (type === 'task' && !isEdit) {
         await Promise.all([fetchProjectsListOnly(), fetchContributorsListOnly()]);
         populateTaskFormDropdowns();
+        updateAssigneeRecommendations(null);
     }
     
     const modal = document.getElementById(`modal-${type}`);
@@ -885,10 +972,13 @@ function closeModal(type) {
     if (type === 'task' && taskDatePicker) taskDatePicker.clear();
 
     if (type === 'task') {
-        const checkboxes = document.getElementsByName('task-projects');
-        checkboxes.forEach(cb => {
-            cb.checked = false;
-        });
+        const select = document.getElementById('task-project-select');
+        if (select) select.value = '';
+        const recContainer = document.getElementById('task-assignee-recommendations');
+        if (recContainer) {
+            recContainer.classList.add('hidden');
+            recContainer.innerHTML = '';
+        }
     }
 
     const modal = document.getElementById(`modal-${type}`);
@@ -1078,7 +1168,7 @@ function closeDeleteModal() {
 }
 
 function generateDeleteCaptcha() {
-    const chars = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ'; // Removed ambiguous characters (1, I, 0, O)
+    const chars = '23456789abcdefghjkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ'; // Removed ambiguous characters
     let code = '';
     for (let i = 0; i < 5; i++) {
         code += chars.charAt(Math.floor(Math.random() * chars.length));
@@ -1093,7 +1183,7 @@ function checkDeleteCaptcha() {
     const input = document.getElementById('delete-captcha-input');
     const btn = document.getElementById('btn-confirm-delete');
     if (input && btn) {
-        if (input.value.trim().toUpperCase() === currentDeleteCaptcha) {
+        if (input.value.trim() === currentDeleteCaptcha) {
             btn.disabled = false;
             btn.className = "px-5 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold text-sm rounded-xl shadow-lg shadow-rose-600/20 transition-all duration-200 cursor-pointer";
         } else {
