@@ -1,10 +1,23 @@
-from rest_framework import viewsets
+from rest_framework import viewsets, permissions, status
 from rest_framework.response import Response
 from django.core.cache import cache
 import hashlib
 from .models import Project, Contributor, Task
 from .serializers import ProjectSerializer, ContributorSerializer, TaskSerializer
 from datetime import date
+
+class IsAdminSession(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.session.get('user_type') == 'admin'
+
+class IsStaffSession(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.session.get('user_type') == 'staff'
+
+class IsAuthenticatedSession(permissions.BasePermission):
+    def has_permission(self, request, view):
+        return request.session.get('user_type') in ['admin', 'staff']
+
 
 class CacheResponseMixin:
     """
@@ -55,12 +68,27 @@ class ProjectViewSet(CacheResponseMixin, viewsets.ModelViewSet):
     serializer_class = ProjectSerializer
     cache_prefix = "project"
 
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'update', 'partial_update']:
+            return [IsAuthenticatedSession()]
+        return [IsAdminSession()]
+
     def get_queryset(self):
         queryset = Project.objects.all().order_by('-created_at')
-        status = self.request.query_params.get('status', None)
-        if status:
-            queryset = queryset.filter(status=status)
+        status_param = self.request.query_params.get('status', None)
+        if status_param:
+            queryset = queryset.filter(status=status_param)
         return queryset
+
+    def update(self, request, *args, **kwargs):
+        user_type = request.session.get('user_type')
+        if user_type == 'staff':
+            # Staff can only update the status of projects connected to their tasks
+            allowed_fields = {'status'}
+            if not set(request.data.keys()).issubset(allowed_fields):
+                return Response({"detail": "Staff can only update project status."}, status=status.HTTP_403_FORBIDDEN)
+            kwargs['partial'] = True
+        return super().update(request, *args, **kwargs)
 
 
 class ContributorViewSet(CacheResponseMixin, viewsets.ModelViewSet):
@@ -71,6 +99,11 @@ class ContributorViewSet(CacheResponseMixin, viewsets.ModelViewSet):
     queryset = Contributor.objects.all().order_by('-joined_on')
     cache_prefix = "contributor"
 
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticatedSession()]
+        return [IsAdminSession()]
+
 
 class TaskViewSet(CacheResponseMixin, viewsets.ModelViewSet):
     """
@@ -80,13 +113,23 @@ class TaskViewSet(CacheResponseMixin, viewsets.ModelViewSet):
     serializer_class = TaskSerializer
     cache_prefix = "task"
 
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve', 'update', 'partial_update']:
+            return [IsAuthenticatedSession()]
+        return [IsAdminSession()]
+
     def get_queryset(self):
-        queryset = Task.objects.all().order_by('due_date')
-        
-        # Filter by contributor
-        contributor = self.request.query_params.get('contributor', None)
-        if contributor:
-            queryset = queryset.filter(assigned_to_id=contributor)
+        user_type = self.request.session.get('user_type')
+        if user_type == 'admin':
+            queryset = Task.objects.all().order_by('due_date')
+            contributor = self.request.query_params.get('contributor', None)
+            if contributor:
+                queryset = queryset.filter(assigned_to_id=contributor)
+        elif user_type == 'staff':
+            staff_id = self.request.session.get('user_id')
+            queryset = Task.objects.filter(assigned_to_id=staff_id).order_by('due_date')
+        else:
+            queryset = Task.objects.none()
         
         # Filter by overdue status
         overdue = self.request.query_params.get('overdue', None)
@@ -97,3 +140,16 @@ class TaskViewSet(CacheResponseMixin, viewsets.ModelViewSet):
                 queryset = queryset.exclude(is_completed=False, due_date__lt=date.today())
                 
         return queryset
+
+    def update(self, request, *args, **kwargs):
+        user_type = request.session.get('user_type')
+        if user_type == 'staff':
+            task = self.get_object()
+            if task.assigned_to_id != request.session.get('user_id'):
+                return Response({"detail": "Not authorized to update this task."}, status=status.HTTP_403_FORBIDDEN)
+            # Staff can only update status and is_completed fields
+            allowed_fields = {'status', 'is_completed'}
+            if not set(request.data.keys()).issubset(allowed_fields):
+                return Response({"detail": "Staff can only update task status and completion fields."}, status=status.HTTP_403_FORBIDDEN)
+            kwargs['partial'] = True
+        return super().update(request, *args, **kwargs)

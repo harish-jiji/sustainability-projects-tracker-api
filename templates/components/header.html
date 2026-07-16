@@ -10,14 +10,24 @@
                     <p class="text-xs text-emerald-400 font-medium">Projects & Tasks Tracker</p>
                 </div>
             </div>
-            <div class="flex items-center space-x-2">
-                <span class="inline-flex items-center rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300 border border-slate-700">
+            <div class="flex items-center space-x-4">
+                <div class="flex items-center text-right sm:text-left gap-1">
+                    <div>
+                        <span id="header-user-name" class="block text-xs font-bold text-white"></span>
+                        <span id="header-user-role" class="block text-[9px] font-black uppercase tracking-widest text-emerald-400"></span>
+                    </div>
+                </div>
+                <span class="hidden md:inline-flex items-center rounded-full bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300 border border-slate-700">
                     <span class="mr-1.5 flex h-2 w-2 relative">
                         <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                         <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                     </span>
                     API Connected
                 </span>
+                <button onclick="handleLogout()" class="bg-slate-950/60 hover:bg-rose-500/10 hover:text-rose-400 text-slate-400 px-3.5 py-2 rounded-xl border border-slate-850 text-xs font-bold transition-all duration-150 flex items-center gap-1.5 cursor-pointer">
+                    <i class="fa-solid fa-right-from-bracket"></i>
+                    <span class="hidden sm:inline">Logout</span>
+                </button>
             </div>
         </div>
     </div>

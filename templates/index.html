@@ -54,29 +54,327 @@
     <!-- Toast Notifications -->
     <div id="toast-container" class="fixed top-5 right-5 z-50 flex flex-col gap-3"></div>
 
-    <!-- Header / Navbar -->
-    {% include "components/header.html" %}
+    <!-- LOGIN SCREEN -->
+    <div id="login-container" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 px-4">
+        <!-- Modern, glassmorphism login card -->
+        <div class="relative bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-md p-8 shadow-2xl space-y-6">
+            <div class="text-center">
+                <div class="mx-auto h-12 w-12 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-500/20 mb-4">
+                    <i class="fa-solid fa-leaf text-slate-955 text-2xl animate-pulse"></i>
+                </div>
+                <h2 class="text-2xl font-black text-white tracking-tight">Welcome Back</h2>
+                <p class="text-xs text-slate-400 mt-1">Sustainability Projects Tracker</p>
+            </div>
+            
+            <!-- Login Type Selector -->
+            <div class="flex p-1 bg-slate-950 border border-slate-800 rounded-xl">
+                <button type="button" onclick="setLoginType('admin')" id="btn-login-admin" class="w-1/2 py-2 px-3 text-xs font-bold rounded-lg transition-all duration-200 bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                    <i class="fa-solid fa-user-shield mr-1.5"></i>Admin
+                </button>
+                <button type="button" onclick="setLoginType('staff')" id="btn-login-staff" class="w-1/2 py-2 px-3 text-xs font-bold rounded-lg transition-all duration-200 text-slate-400 hover:text-white">
+                    <i class="fa-solid fa-users mr-1.5"></i>Staff
+                </button>
+            </div>
 
-    <!-- Main Container -->
-    <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
-        <!-- Sidebar Navigation -->
-        {% include "components/sidebar.html" %}
+            <!-- LOGIN FORM -->
+            <form id="form-login" onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                {% csrf_token %}
+                <div id="login-field-identity">
+                    <!-- Dynamic: Username for admin, Email for staff -->
+                </div>
+                <div>
+                    <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Password</label>
+                    <div class="relative">
+                        <input type="password" id="login-password" required placeholder="Enter password..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                        <button type="button" onclick="togglePasswordVisibility('login-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-450 hover:text-white transition-colors duration-150 cursor-pointer">
+                            <i class="fa-regular fa-eye"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between text-xs pt-1">
+                    <div></div>
+                    <button type="button" onclick="showForgotPasswordForm()" class="text-slate-400 hover:text-emerald-400 font-semibold transition-colors duration-150">Forgot Password?</button>
+                </div>
 
-        <!-- Main Content Area -->
-        <section class="flex-grow flex flex-col min-w-0">
-            <!-- TAB: PROJECTS -->
-            {% include "components/projects.html" %}
+                <button type="submit" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-955 font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 tracking-wider">
+                    Sign In
+                </button>
+            </form>
 
-            <!-- TAB: TASKS -->
-            {% include "components/tasks.html" %}
+            <!-- FORGOT PASSWORD FORM (Hidden by default) -->
+            <form id="form-forgot-password" onsubmit="handleForgotPasswordSubmit(event)" class="space-y-4 hidden">
+                <div class="text-center pb-2">
+                    <span class="inline-block text-[10px] font-bold text-rose-400 uppercase bg-rose-500/10 px-2 py-0.5 rounded border border-rose-500/20 tracking-wider mb-1"><i class="fa-solid fa-lock mr-1"></i>Reset Password</span>
+                    <p class="text-xs text-slate-400">Answer security questions to unlock.</p>
+                </div>
+                <div id="forgot-field-identity">
+                    <!-- Dynamic -->
+                </div>
+                
+                <!-- Security Questions -->
+                <div class="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-800">
+                    <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1"><i class="fa-solid fa-shield-halved mr-1"></i>Security Questions</div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1">1. What is your favorite book?</label>
+                        <input type="text" id="forgot-ans-1" required placeholder="Answer 1..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1">2. What is the name of your first pet?</label>
+                        <input type="text" id="forgot-ans-2" required placeholder="Answer 2..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1">3. What city were you born in?</label>
+                        <input type="text" id="forgot-ans-3" required placeholder="Answer 3..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500">
+                    </div>
+                </div>
 
-            <!-- TAB: CONTRIBUTORS -->
-            {% include "components/contributors.html" %}
-        </section>
-    </main>
+                <!-- New Passwords -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">New Password</label>
+                        <div class="relative">
+                            <input type="password" id="forgot-new-password" required placeholder="Min 8 chars..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-8 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500">
+                            <button type="button" onclick="togglePasswordVisibility('forgot-new-password', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors duration-150 cursor-pointer">
+                                <i class="fa-regular fa-eye text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Confirm Password</label>
+                        <div class="relative">
+                            <input type="password" id="forgot-re-password" required placeholder="Confirm..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-8 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500">
+                            <button type="button" onclick="togglePasswordVisibility('forgot-re-password', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors duration-150 cursor-pointer">
+                                <i class="fa-regular fa-eye text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
 
-    <!-- Modals -->
-    {% include "components/modals.html" %}
+                <div class="flex gap-2.5 pt-2">
+                    <button type="button" onclick="hideForgotPasswordForm()" class="w-1/3 py-2.5 border border-slate-800 rounded-xl text-slate-400 hover:text-white text-xs font-semibold transition-all duration-200">Cancel</button>
+                    <button type="submit" class="w-2/3 py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl shadow-lg shadow-rose-500/20 transition-all duration-200 text-xs">Reset & Login</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- FIRST LOGIN RESET PASSWORD & QUESTIONS SCREEN -->
+    <div id="first-login-container" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-950 px-4 hidden">
+        <div class="bg-slate-900 border border-emerald-500/20 rounded-2xl w-full max-w-md p-8 shadow-2xl space-y-6">
+            <div class="text-center">
+                <span class="inline-block text-[10px] font-bold text-emerald-400 uppercase bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20 tracking-wider mb-1"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i>First Time Setup</span>
+                <h2 class="text-xl font-black text-white tracking-tight">Configure Your Security</h2>
+                <p class="text-xs text-slate-400 mt-1">Set a secure password and answers to security questions.</p>
+            </div>
+            
+            <form id="form-first-login" onsubmit="handleFirstLoginSubmit(event)" class="space-y-4">
+                <!-- Passwords -->
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">New Password</label>
+                        <div class="relative">
+                            <input type="password" id="first-new-password" required placeholder="Min 8 chars..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-8 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <button type="button" onclick="togglePasswordVisibility('first-new-password', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors duration-150 cursor-pointer">
+                                <i class="fa-regular fa-eye text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Confirm Password</label>
+                        <div class="relative">
+                            <input type="password" id="first-re-password" required placeholder="Confirm..." class="w-full bg-slate-950 border border-slate-800 rounded-lg pl-3 pr-8 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                            <button type="button" onclick="togglePasswordVisibility('first-re-password', this)" class="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors duration-150 cursor-pointer">
+                                <i class="fa-regular fa-eye text-[10px]"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Security Questions -->
+                <div class="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-800">
+                    <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1"><i class="fa-solid fa-shield-halved mr-1"></i>Security Questions (For Forgot Password Recovery)</div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1">1. What is your favorite book?</label>
+                        <input type="text" id="first-ans-1" required placeholder="e.g. Lord of the Rings" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1">2. What is the name of your first pet?</label>
+                        <input type="text" id="first-ans-2" required placeholder="e.g. Max" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                    <div>
+                        <label class="block text-[10px] text-slate-400 mb-1">3. What city were you born in?</label>
+                        <input type="text" id="first-ans-3" required placeholder="e.g. Amritapuri" class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                    </div>
+                </div>
+
+                <button type="submit" class="w-full py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-955 font-bold rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200 text-sm tracking-wider">
+                    Save and Access Dashboard
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="app-container" class="h-full flex flex-col hidden">
+        <!-- Header / Navbar -->
+        {% include "components/header.html" %}
+
+        <!-- Main Container -->
+        <main class="flex-grow max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col lg:flex-row gap-8">
+            <!-- Sidebar Navigation -->
+            {% include "components/sidebar.html" %}
+
+            <!-- Main Content Area -->
+            <section class="flex-grow flex flex-col min-w-0">
+                <!-- TAB: PROJECTS -->
+                {% include "components/projects.html" %}
+
+                <!-- TAB: TASKS -->
+                {% include "components/tasks.html" %}
+
+                <!-- TAB: CONTRIBUTORS -->
+                {% include "components/contributors.html" %}
+
+                <!-- TAB: SETTINGS -->
+                <div id="content-settings" class="space-y-6 hidden">
+                    <div>
+                        <h2 class="text-2xl font-bold text-white">Profile & Settings</h2>
+                        <p class="text-sm text-slate-400 mt-1">Manage your account information and preferences.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
+                        <!-- Profile Card -->
+                        <div class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl w-full">
+                            <form id="form-settings" onsubmit="handleSettingsSubmit(event)" class="space-y-6">
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Display Name</label>
+                                        <input type="text" id="settings-name" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    </div>
+                                    <div id="settings-username-container">
+                                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Username</label>
+                                        <input type="text" id="settings-username" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    </div>
+                                    <div class="col-span-full">
+                                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Email Address</label>
+                                        <input type="email" id="settings-email" required class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    </div>
+                                    <div id="settings-skills-container" class="col-span-full hidden">
+                                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">My Skills (Comma separated)</label>
+                                        <input type="text" id="settings-skills" placeholder="e.g. Gardening, Painting, Writing" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                    </div>
+                                </div>
+
+                                <hr class="border-slate-800">
+
+                                <!-- Change Password -->
+                                <div class="space-y-4">
+                                    <div class="text-sm font-bold text-white"><i class="fa-solid fa-key mr-2 text-slate-400"></i>Change Password (Optional)</div>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">New Password</label>
+                                            <div class="relative">
+                                                <input type="password" id="settings-password" placeholder="Enter new password..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                                <button type="button" onclick="togglePasswordVisibility('settings-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors duration-150 cursor-pointer">
+                                                    <i class="fa-regular fa-eye"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                        <div>
+                                            <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Confirm Password</label>
+                                            <div class="relative">
+                                                <input type="password" id="settings-re-password" placeholder="Confirm new password..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                                <button type="button" onclick="togglePasswordVisibility('settings-re-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors duration-150 cursor-pointer">
+                                                    <i class="fa-regular fa-eye"></i>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr class="border-slate-800">
+
+                                <!-- Security Verification -->
+                                <div class="space-y-4">
+                                    <div class="text-sm font-bold text-white"><i class="fa-solid fa-user-lock mr-2 text-slate-400"></i>Security Verification</div>
+                                    <div>
+                                        <label class="block text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Current Password <span id="current-pwd-req-star" class="text-rose-500 font-bold hidden">*</span></label>
+                                        <p class="text-[10px] text-slate-500 mb-2">Required only if you are changing your username or password.</p>
+                                        <div class="relative">
+                                            <input type="password" id="settings-current-password" placeholder="Enter current password to save changes..." class="w-full bg-slate-950 border border-slate-800 rounded-xl pl-4 pr-10 py-3 text-slate-200 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                            <button type="button" onclick="togglePasswordVisibility('settings-current-password', this)" class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-white transition-colors duration-150 cursor-pointer">
+                                                <i class="fa-regular fa-eye"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <hr class="border-slate-800">
+
+                                <!-- Security Questions -->
+                                <div class="space-y-4">
+                                    <div class="text-sm font-bold text-white"><i class="fa-solid fa-shield-halved mr-2 text-slate-400"></i>Security Questions (For password reset recovery)</div>
+                                    <div class="space-y-3 bg-slate-950/40 p-4 rounded-xl border border-slate-850">
+                                        <div>
+                                            <label class="block text-[10px] text-slate-400 mb-1">1. What is your favorite book?</label>
+                                            <input type="text" id="settings-ans-1" placeholder="Keep current or enter new answer..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] text-slate-400 mb-1">2. What is the name of your first pet?</label>
+                                            <input type="text" id="settings-ans-2" placeholder="Keep current or enter new answer..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                        </div>
+                                        <div>
+                                            <label class="block text-[10px] text-slate-400 mb-1">3. What city were you born in?</label>
+                                            <input type="text" id="settings-ans-3" placeholder="Keep current or enter new answer..." class="w-full bg-slate-950 border border-slate-800 rounded-lg px-3 py-2 text-slate-200 text-xs focus:outline-none focus:ring-2 focus:ring-emerald-500">
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="flex justify-end pt-4 border-t border-slate-800">
+                                    <button type="submit" class="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 text-slate-955 font-bold text-sm rounded-xl shadow-lg shadow-emerald-500/20 transition-all duration-200">
+                                        Save Profile Settings
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+
+                        <!-- Administrators Management Card -->
+                        <div id="admin-management-card" class="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-xl w-full hidden">
+                            <div class="flex justify-between items-center pb-4 border-b border-slate-800 mb-4">
+                                <div>
+                                    <h3 class="text-base font-bold text-white">Administrators</h3>
+                                    <p class="text-xs text-slate-400 mt-0.5">Manage administrative accounts.</p>
+                                </div>
+                                <button type="button" onclick="openModal('admin-user')" class="inline-flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-500 hover:bg-emerald-400 text-slate-955 font-bold text-xs rounded-lg transition-all duration-200">
+                                    <i class="fa-solid fa-plus text-[10px]"></i>
+                                    <span>Add Admin</span>
+                                </button>
+                            </div>
+                            
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left text-xs border-collapse">
+                                    <thead>
+                                        <tr class="border-b border-slate-800 text-slate-500">
+                                            <th class="py-2.5">Username</th>
+                                            <th class="py-2.5">Email</th>
+                                            <th class="py-2.5 text-right">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="admins-list-tbody" class="divide-y divide-slate-800/40">
+                                        <!-- Dynamic Rows -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Modals -->
+        {% include "components/modals.html" %}
+    </div>
 
     <!-- Flatpickr Datepicker Library -->
     <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>

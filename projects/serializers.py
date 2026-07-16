@@ -2,10 +2,56 @@ from rest_framework import serializers
 from .models import Project, Contributor, Task
 from datetime import date
 
+from django.contrib.auth.hashers import make_password
+
 class ContributorSerializer(serializers.ModelSerializer):
     class Meta:
         model = Contributor
-        fields = ['id', 'name', 'email', 'skills', 'joined_on']
+        fields = [
+            'id', 'name', 'email', 'skills', 'joined_on', 'joined_date', 
+            'password', 'is_temp_password', 'security_answer_1', 
+            'security_answer_2', 'security_answer_3'
+        ]
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False},
+            'security_answer_1': {'write_only': True, 'required': False},
+            'security_answer_2': {'write_only': True, 'required': False},
+            'security_answer_3': {'write_only': True, 'required': False},
+            'is_temp_password': {'read_only': True}
+        }
+
+    def create(self, validated_data):
+        raw_password = validated_data.pop('password', None)
+        # Normalize security answers (trimmed and lowercase)
+        for i in range(1, 4):
+            key = f'security_answer_{i}'
+            if key in validated_data and validated_data[key]:
+                validated_data[key] = validated_data[key].strip().lower()
+                
+        instance = super().create(validated_data)
+        if raw_password:
+            instance.password = make_password(raw_password)
+            instance.is_temp_password = True
+            instance.save()
+        return instance
+
+    def update(self, instance, validated_data):
+        raw_password = validated_data.pop('password', None)
+        # Normalize security answers (trimmed and lowercase)
+        for i in range(1, 4):
+            key = f'security_answer_{i}'
+            if key in validated_data:
+                if validated_data[key]:
+                    validated_data[key] = validated_data[key].strip().lower()
+                else:
+                    validated_data[key] = None
+
+        instance = super().update(instance, validated_data)
+        if raw_password:
+            instance.password = make_password(raw_password)
+            instance.is_temp_password = True
+            instance.save()
+        return instance
 
 
 class ProjectTaskSerializer(serializers.ModelSerializer):
@@ -57,4 +103,26 @@ class TaskSerializer(serializers.ModelSerializer):
 
     def get_is_overdue(self, obj):
         return not obj.is_completed and obj.due_date < date.today()
+
+
+class AdminSettingsSerializer(serializers.Serializer):
+    name = serializers.CharField(required=True)
+    username = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
+    current_password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    security_answer_1 = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    security_answer_2 = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    security_answer_3 = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+
+class StaffSettingsSerializer(serializers.Serializer):
+    name = serializers.CharField(required=True)
+    email = serializers.EmailField(required=True)
+    skills = serializers.CharField(required=False, allow_blank=True)
+    current_password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    security_answer_1 = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    security_answer_2 = serializers.CharField(required=False, allow_blank=True, write_only=True)
+    security_answer_3 = serializers.CharField(required=False, allow_blank=True, write_only=True)
 

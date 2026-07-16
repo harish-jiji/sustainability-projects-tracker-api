@@ -48,6 +48,12 @@ class SustainabilityTrackerTests(APITestCase):
         # Clear cache before each test
         cache.clear()
 
+        # Set admin session details to pass IsAdminSession permissions
+        session = self.client.session
+        session['user_type'] = 'admin'
+        session['user_id'] = 999
+        session.save()
+
     # 1. Project API Tests
     def test_get_projects_list(self):
         url = reverse('project-list')
@@ -193,6 +199,189 @@ class SustainabilityTrackerTests(APITestCase):
             status="On Hold"
         )
         self.assertEqual(task2.status, "On Hold")
+
+    # 5. Auth and Role-Based Permissions Tests
+    def test_admin_settings_and_auth(self):
+        from django.contrib.auth.models import User
+        admin_user = User.objects.create_superuser(username="admin_test", email="admin@test.com", password="SecureAdminPassword123")
+        
+        # Test Login
+        login_url = reverse('auth_login')
+        payload = {
+            "user_type": "admin",
+            "username": "admin_test",
+            "password": "SecureAdminPassword123"
+        }
+        self.client.session.clear()
+        response = self.client.post(login_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.session.get('user_type'), 'admin')
+
+        # Test Update settings - incorrect current password (should fail)
+        settings_url = reverse('auth_update_settings')
+        settings_payload = {
+            "name": "Updated Admin Name",
+            "email": "newadmin@test.com",
+            "username": "admin_test_updated",
+            "password": "NewSecurePassword123",
+            "current_password": "WrongPassword"
+        }
+        response = self.client.post(settings_url, settings_payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test Update settings - missing current password (should fail)
+        settings_payload = {
+            "name": "Updated Admin Name",
+            "email": "newadmin@test.com",
+            "username": "admin_test_updated",
+            "password": "NewSecurePassword123"
+        }
+        response = self.client.post(settings_url, settings_payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+
+        # Test Update settings - correct current password (should succeed)
+        settings_payload = {
+            "name": "Updated Admin Name",
+            "email": "newadmin@test.com",
+            "username": "admin_test_updated",
+            "password": "NewSecurePassword123",
+            "current_password": "SecureAdminPassword123"
+        }
+        response = self.client.post(settings_url, settings_payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        # Verify user attributes updated
+        admin_user.refresh_from_db()
+        self.assertEqual(admin_user.email, "newadmin@test.com")
+        self.assertEqual(admin_user.username, "admin_test_updated")
+
+    def test_contributor_first_login_and_restrictions(self):
+        # Create contributor with hashed temp password
+        from django.contrib.auth.hashers import make_password
+        staff = Contributor.objects.create(
+            name="Staff User",
+            email="staff@test.com",
+            password=make_password("TempPassword123"),
+            is_temp_password=True,
+            joined_date=date.today()
+        )
+        
+        # Test Login with temporary password
+        login_url = reverse('auth_login')
+        payload = {
+            "user_type": "staff",
+            "email": "staff@test.com",
+            "password": "TempPassword123"
+        }
+        self.client.session.clear()
+        response = self.client.post(login_url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(self.client.session.get('user_type'), 'staff')
+        
+        # Check profile indicates temporary password setup is required
+        me_url = reverse('auth_me')
+        response = self.client.get(me_url)
+        self.assertTrue(response.data['is_temp_password'])
+
+        # Change temporary password and configure security answers
+        change_url = reverse('auth_change_temp_password')
+        change_payload = {
+            "new_password": "NewSecurePassword123",
+            "re_password": "NewSecurePassword123",
+            "security_answer_1": "Lord of the Rings",
+            "security_answer_2": "Max",
+            "security_answer_3": "Amritapuri"
+        }
+        response = self.client.post(change_url, change_payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        
+        staff.refresh_from_db()
+        self.assertFalse(staff.is_temp_password)
+        self.assertEqual(staff.security_answer_1, "lord of the rings") # hashed lowercase
+
+        # Test Staff role restrictions on updating tasks
+        task = Task.objects.create(
+            assigned_to=staff,
+            title="Clean solar panel",
+            description="Use microfiber cloth",
+            due_date=date.today(),
+            is_completed=False,
+            status="Active"
+        )
+        task.projects.add(self.project_active)
+
+        # Attempt to change title (should be rejected/ignored for other fields, only status/is_completed allowed)
+        task_url = reverse('task-detail', kwargs={'pk': task.id})
+        update_payload = {
+            "title": "Hacked Title",
+            "is_completed": True,
+            "status": "Completed"
+        }
+        response = self.client.put(task_url, update_payload, format='json')
+        # Response should be 403 Forbidden because staff cannot modify non-status fields!
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+
+        # Update only status and is_completed (should be successful)
+        valid_payload = {
+            "is_completed": True,
+            "status": "Completed"
+        }
+        response = self.client.put(task_url, valid_payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        task.refresh_from_db()
+        self.assertTrue(task.is_completed)
+        self.assertEqual(task.status, "Completed")
+        # Ensure title did not change
+        self.assertEqual(task.title, "Clean solar panel")
+
+    def test_admin_management_rules(self):
+        from django.contrib.auth.models import User
+        User.objects.all().delete()
+        
+        admin1 = User.objects.create_superuser(username="admin1", email="admin1@test.com", password="SecurePassword123")
+        
+        session = self.client.session
+        session['user_type'] = 'admin'
+        session['user_id'] = admin1.id
+        session.save()
+
+        # 1. List admins
+        url = reverse('admin-list')
+        response = self.client.get(url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(response.data), 1)
+        self.assertEqual(response.data[0]['username'], "admin1")
+
+        # 2. Attempt self-deletion when sole admin (should fail 400)
+        delete_self_url = reverse('admin-detail', kwargs={'pk': admin1.id})
+        response = self.client.delete(delete_self_url)
+        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn("You are the only administrator", response.data['detail'])
+
+        # 3. Create second admin
+        payload = {
+            "username": "admin2",
+            "email": "admin2@test.com",
+            "password": "NewSecurePassword123",
+            "re_password": "NewSecurePassword123"
+        }
+        response = self.client.post(url, payload, format='json')
+        self.assertEqual(response.status_code, status.HTTP_201_CREATED)
+        self.assertTrue(User.objects.filter(username="admin2", is_superuser=True).exists())
+        admin2 = User.objects.get(username="admin2")
+
+        # 4. Attempt to delete admin2 (other admin) (should fail 403)
+        delete_other_url = reverse('admin-detail', kwargs={'pk': admin2.id})
+        response = self.client.delete(delete_other_url)
+        self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
+        self.assertIn("not allowed to delete other administrators", response.data['detail'])
+
+        # 5. Delete self when admin2 is available (should succeed 200)
+        response = self.client.delete(delete_self_url)
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertFalse(User.objects.filter(id=admin1.id).exists())
+        # Verify session flushed
+        self.assertNotIn('user_id', self.client.session)
 
 
 
