@@ -220,60 +220,169 @@ When creating or editing a task, the **Assignee** dropdown automatically recomme
 
 ## ⚙️ Installation & Setup
 
-### Prerequisites
-- Python 3.8+ (tested on 3.14)
-- MySQL 8.0 (running locally)
-- Redis (optional — falls back to in-memory cache automatically)
+### Prerequisites — Install These First
 
-### Step 1: Clone the Repository
+Before setting up the project, make sure the following software is installed on your system:
+
+| Software | Version | Download Link |
+|---|---|---|
+| **Python** | 3.10+ (tested on 3.14) | https://www.python.org/downloads/ |
+| **MySQL** | 8.0+ | https://dev.mysql.com/downloads/installer/ |
+| **Redis** *(optional)* | Any | https://redis.io/docs/getting-started/installation/ |
+| **pip** | Latest | Bundled with Python |
+
+> **Redis is optional.** If Redis is not installed, the server automatically falls back to in-memory caching with no extra configuration needed.
+
+---
+
+### 📦 Method A: Download as ZIP (No Git Required)
+
+This is the recommended method if you simply want to run the project without version control.
+
+#### Step 1: Download the ZIP
+
+1. Go to the GitHub repository page:  
+   `https://github.com/harish-jiji/sustainability-projects-tracker-api`
+2. Click the green **`<> Code`** button.
+3. Select **`Download ZIP`**.
+4. Save the file (e.g., `sustainability-projects-tracker-api-main.zip`) to a location of your choice, such as your Desktop or `C:\Projects\`.
+
+#### Step 2: Extract the ZIP
+
+**Windows:**
+1. Right-click the downloaded `.zip` file.
+2. Select **Extract All…**
+3. Choose a destination folder, for example: `C:\Projects\sustainability-tracker\`
+4. Click **Extract**.
+5. Open the extracted folder — you should see `manage.py`, `requirements.txt`, etc.
+
+**macOS / Linux:**
 ```bash
-git clone https://github.com/harish-jiji/sustainability-projects-tracker-api.git
-cd sustainability-projects-tracker-api
+unzip sustainability-projects-tracker-api-main.zip -d ~/Projects/sustainability-tracker/
+cd ~/Projects/sustainability-tracker/sustainability-projects-tracker-api-main/
 ```
 
-### Step 2: Create & Activate Virtual Environment
-```bash
-python -m venv .venv
+#### Step 3: Open a Terminal in the Project Folder
 
-# Windows
+**Windows:**
+- Open File Explorer, navigate to the extracted folder.
+- Click the address bar, type `cmd`, and press Enter.
+- *(Or right-click inside the folder → "Open in Terminal" if available.)*
+
+**macOS / Linux:**
+```bash
+cd ~/Projects/sustainability-tracker/sustainability-projects-tracker-api-main/
+```
+
+#### Step 4: Create a Virtual Environment
+
+A virtual environment keeps the project's Python packages isolated from the rest of your system.
+
+```bash
+# Create the virtual environment
+python -m venv .venv
+```
+
+Then activate it:
+
+```bash
+# Windows (Command Prompt)
 .venv\Scripts\activate
+
+# Windows (PowerShell)
+.venv\Scripts\Activate.ps1
 
 # macOS / Linux
 source .venv/bin/activate
 ```
 
-### Step 3: Install Dependencies
+> ✅ You'll know it's active when your terminal prompt shows `(.venv)` at the beginning.
+
+#### Step 5: Install Python Dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### Step 4: Configure Environment Variables
-```bash
-copy .env.example .env      # Windows
-cp .env.example .env        # macOS/Linux
+This installs Django, Django REST Framework, PyMySQL, Redis client, and all other required packages listed in `requirements.txt`.
+
+Expected output (example):
 ```
-Edit `.env` and fill in your values:
+Successfully installed Django-5.2.16 djangorestframework-3.17.1 PyMySQL-1.2.0 ...
+```
+
+#### Step 6: Set Up the Environment File
+
+The project uses a `.env` file to store sensitive configuration (database password, secret key, etc.).
+
+```bash
+# Windows (Command Prompt)
+copy .env.example .env
+
+# Windows (PowerShell)
+Copy-Item .env.example .env
+
+# macOS / Linux
+cp .env.example .env
+```
+
+Now open `.env` in any text editor (Notepad, VS Code, etc.) and fill in your values:
+
 ```env
-SECRET_KEY=your-django-secret-key
+# Django
+DEBUG=True
+SECRET_KEY=replace-this-with-a-long-random-string
+
+# MySQL Database
 DB_NAME=sustainability_tracker
 DB_USER=root
-DB_PASSWORD=your_mysql_password
+DB_PASSWORD=your_mysql_password_here
 DB_HOST=127.0.0.1
 DB_PORT=3306
+
+# Redis (optional — leave as-is if Redis is not installed)
 REDIS_URL=redis://127.0.0.1:6379/1
 ```
 
-### Step 5: Create MySQL Database
+> **Tip:** Generate a secure `SECRET_KEY` by running:
+> ```bash
+> python -c "from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())"
+> ```
+
+#### Step 7: Create the MySQL Database
+
+Open the MySQL command-line client or MySQL Workbench and run:
+
 ```sql
-CREATE DATABASE IF NOT EXISTS sustainability_tracker;
+CREATE DATABASE IF NOT EXISTS sustainability_tracker CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-### Step 6: Run Migrations
+Make sure the `DB_USER` in your `.env` has privileges on this database:
+
+```sql
+GRANT ALL PRIVILEGES ON sustainability_tracker.* TO 'root'@'localhost';
+FLUSH PRIVILEGES;
+```
+
+#### Step 8: Run Database Migrations
+
+This creates all the required tables in your MySQL database:
+
 ```bash
 python manage.py migrate
 ```
 
-### Step 7: Create First Admin Account
+Expected output ends with:
+```
+Running migrations:
+  Applying projects.0001_initial... OK
+  ...
+```
+
+#### Step 9: Create the First Admin Account
+
+Run this one-time command to create the default admin login:
+
 ```bash
 python manage.py shell -c "
 from django.contrib.auth.models import User
@@ -283,15 +392,56 @@ u.is_superuser = True
 u.is_staff = True
 u.save()
 AdminProfile.objects.create(user=u, email='admin@example.com')
-print('Done.')
+print('✅ Admin created: username=admin, password=AdminPassword123')
 "
 ```
 
-### Step 8: Start the Development Server
+> ⚠️ **Change this password immediately** after your first login via the Settings page in the dashboard.
+
+#### Step 10: Start the Development Server
+
 ```bash
 python manage.py runserver
 ```
-Open **[http://127.0.0.1:8000/](http://127.0.0.1:8000/)** in your browser.
+
+Open your browser and go to:  
+👉 **http://127.0.0.1:8000/**
+
+Log in with:
+- **Username:** `admin`
+- **Password:** `AdminPassword123`
+
+---
+
+### 🔁 Method B: Clone with Git
+
+If you have Git installed and prefer version control:
+
+```bash
+git clone https://github.com/harish-jiji/sustainability-projects-tracker-api.git
+cd sustainability-projects-tracker-api
+```
+
+Then follow **Steps 4 through 10** from Method A above.
+
+---
+
+## 🔄 Stopping and Restarting the Server
+
+To **stop** the server: press `Ctrl + C` in the terminal.
+
+To **restart** it later, you only need to:
+1. Re-activate the virtual environment:
+   ```bash
+   # Windows
+   .venv\Scripts\activate
+   # macOS/Linux
+   source .venv/bin/activate
+   ```
+2. Run the server again:
+   ```bash
+   python manage.py runserver
+   ```
 
 ---
 
@@ -311,13 +461,27 @@ OK
 
 ---
 
+## ❗ Troubleshooting
+
+| Problem | Solution |
+|---|---|
+| `ModuleNotFoundError` | Make sure your virtual environment is activated (`(.venv)` in prompt) and you ran `pip install -r requirements.txt`. |
+| `django.db.utils.OperationalError` (Can't connect to MySQL) | Check that MySQL is running, and that `DB_HOST`, `DB_USER`, `DB_PASSWORD`, and `DB_PORT` in `.env` are correct. |
+| `django.core.exceptions.ImproperlyConfigured` (SECRET_KEY) | Make sure you copied `.env.example` to `.env` and set a valid `SECRET_KEY`. |
+| `.venv\Scripts\Activate.ps1 cannot be loaded` (PowerShell) | Run `Set-ExecutionPolicy -Scope CurrentUser RemoteSigned` and try again. |
+| Redis connection error on startup | This is non-fatal. The server prints a warning and automatically uses in-memory cache. You can safely ignore this if Redis is not installed. |
+| Port 8000 already in use | Run on a different port: `python manage.py runserver 8080` |
+| `Access denied for user 'root'` (MySQL) | Verify your MySQL password in `.env`. If using XAMPP/WAMP, the default root password may be empty — leave `DB_PASSWORD=` blank. |
+
+---
+
 ## 📁 Project Structure
 
 ```
 sustainability-projects-tracker-api/
 ├── manage.py
 ├── requirements.txt
-├── .env.example
+├── .env.example             ← Copy this to .env and fill in your values
 ├── sustainability_tracker/
 │   ├── settings.py          # Redis fallback, REST framework config
 │   └── urls.py              # Root URL routing
